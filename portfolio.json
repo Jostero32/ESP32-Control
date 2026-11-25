@@ -8,8 +8,8 @@
   "destacado": true,
   "anio": 2026,
   "rol": "Diseño y desarrollo del firmware y la interfaz web",
-  "portada": "docs/esquema-conexiones.svg",
-  "capturas": [
+  "portada": "docs/img/portada.png",
+  "capturas": ["docs/img/portada.png", 
     "docs/esquema-conexiones.svg",
     "docs/img/portal-wifi.png",
     "docs/img/admin-config.png",
