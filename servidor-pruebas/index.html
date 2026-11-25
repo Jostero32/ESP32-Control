@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de pruebas</title>
+  <style>
+    :root {
+      --bg: #f3f5f9; --card: #fff; --text: #1c2430; --muted: #5d6878; --border: #dde2ea;
+      --primary: #2563eb; --ok-bg: #e7f6ec; --ok: #17663a; --err-bg: #fdecec; --err: #a32020;
+      --warn-bg: #fff6e0; --warn: #7a5600; --new: #fff8c5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #11161d; --card: #1a212b; --text: #e6ebf2; --muted: #9aa5b5; --border: #2c3542;
+        --primary: #3b82f6; --ok-bg: #12301f; --ok: #7fd6a0; --err-bg: #3a1717; --err: #ff9c9c;
+        --warn-bg: #3a2e10; --warn: #f3cd72; --new: #3a3510;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .muted { color: var(--muted); font-size: .9rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 16px; margin-top: 16px; }
+    .card h2 { font-size: 1rem; margin: 0 0 10px; }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+    .url { display: inline-block; background: var(--bg); border: 1px solid var(--border);
+           border-radius: 6px; padding: 4px 8px; margin: 4px 6px 4px 0; user-select: all; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+    .modes { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { border: 1px solid var(--border); background: var(--bg); color: var(--text);
+             border-radius: 8px; padding: 7px 12px; font-size: .9rem; cursor: pointer; }
+    button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: .8rem; }
+    tr.new td { background: var(--new); transition: background 2s; }
+    .chip { display: inline-block; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 999px; padding: 1px 8px; margin: 2px 4px 2px 0; }
+    .chip b { font-weight: 600; }
+    .badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: .8rem; font-weight: 600; }
+    .r200, .r409 { background: var(--ok-bg); color: var(--ok); }
+    .r404, .r500 { background: var(--err-bg); color: var(--err); }
+    .rtimeout { background: var(--warn-bg); color: var(--warn); }
+    .raw { color: var(--muted); word-break: break-all; }
+    .empty { text-align: center; color: var(--muted); padding: 24px; }
+    .status { font-size: .85rem; }
+    .status.off { color: var(--err); }
+    @media (max-width: 640px) { .hide-sm { display: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Panel de pruebas · ESP32-Control</h1>
+    <p class="muted">Muestra en tiempo real las peticiones GET que envían los botones del ESP32.
+      <span id="status" class="status">● conectado</span></p>
+
+    <section class="card">
+      <h2>1. URL que debes poner en /admin → «URL de destino»</h2>
+      <div id="urls" class="muted">Cargando…</div>
+      <p class="muted">El PC y el ESP32 deben estar en la misma red Wi-Fi. Usa <code>http://</code>, no https.</p>
+    </section>
+
+    <section class="card">
+      <div class="toolbar">
+        <h2>2. Respuesta que devuelve este servidor al ESP32</h2>
+        <div class="modes" id="modes">
+          <button data-mode="200">200 OK</button>
+          <button data-mode="409">409 (ya registrado)</button>
+          <button data-mode="404">404</button>
+          <button data-mode="500">500</button>
+          <button data-mode="timeout">Sin respuesta (timeout)</button>
+        </div>
+      </div>
+      <p class="muted">Con 200 o 409 el monitor serie del ESP32 muestra «ÉXITO»; con 500 o sin respuesta reintenta; con 404 descarta el evento.</p>
+    </section>
+
+    <section class="card">
+      <div class="toolbar">
+        <h2>3. Peticiones recibidas (<span id="count">0</span>)</h2>
+        <button id="clear">Limpiar</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Hora</th><th>Parámetros</th><th class="hide-sm">Origen</th><th>Respuesta</th></tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="5" class="empty">Aún no se ha recibido ninguna petición. Pulsa un botón del ESP32.</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    let lastSeenId = 0;
+    let firstLoad = true;
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;  // textContent: nada se interpreta como HTML.
+      return node;
+    }
+
+    function renderUrls(addresses, port) {
+      const box = $('urls');
+      box.textContent = '';
+      if (!addresses.length) {
+        box.textContent = 'No se detectó ninguna IP de red local en este PC.';
+        return;
+      }
+      addresses.forEach((a) => {
+        box.appendChild(el('code', 'url', 'http://' + a.address + ':' + port + '/evento'));
+        box.appendChild(el('span', 'muted', '(' + a.name + ') '));
+      });
+    }
+
+    function renderModes(mode) {
+      document.querySelectorAll('#modes button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+    }
+
+    function renderEvents(events) {
+      $('count').textContent = events.length;
+      const tbody = $('rows');
+      tbody.textContent = '';
+      if (!events.length) {
+        const tr = el('tr');
+        const td = el('td', 'empty', 'Aún no se ha recibido ninguna petición. Pulsa un botón del ESP32.');
+        td.colSpan = 5;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+      events.forEach((e) => {
+        const tr = el('tr', !firstLoad && e.id > lastSeenId ? 'new' : '');
+        tr.appendChild(el('td', '', String(e.id)));
+        tr.appendChild(el('td', '', new Date(e.time).toLocaleTimeString('es', { hour12: false })));
+
+        const params = el('td');
+        const entries = Object.entries(e.query);
+        if (!entries.length) params.appendChild(el('span', 'muted', '(sin parámetros)'));
+        entries.forEach(([k, v]) => {
+          const chip = el('span', 'chip');
+          chip.appendChild(el('b', '', k));
+          chip.appendChild(document.createTextNode(' = ' + v));
+          params.appendChild(chip);
+        });
+        params.appendChild(el('div', 'raw', 'GET ' + e.rawUrl));
+        tr.appendChild(params);
+
+        tr.appendChild(el('td', 'hide-sm', e.ip));
+        const resp = el('td');
+        resp.appendChild(el('span', 'badge r' + e.response, e.response === 'timeout' ? 'timeout' : e.response));
+        tr.appendChild(resp);
+        tbody.appendChild(tr);
+      });
+      if (events.length) lastSeenId = Math.max(lastSeenId, events[0].id);
+      firstLoad = false;
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/panel/api/eventos', { cache: 'no-store' });
+        const data = await res.json();
+        renderUrls(data.addresses, data.port);
+        renderModes(data.mode);
+        renderEvents(data.events);
+        $('status').textContent = '● conectado';
+        $('status').className = 'status';
+      } catch (err) {
+        $('status').textContent = '● sin conexión con el servidor';
+        $('status').className = 'status off';
+      }
+    }
+
+    document.querySelectorAll('#modes button').forEach((b) => {
+      b.addEventListener('click', async () => {
+        await fetch('/panel/api/modo?modo=' + encodeURIComponent(b.dataset.mode), { method: 'POST' });
+        refresh();
+      });
+    });
+    $('clear').addEventListener('click', async () => {
+      await fetch('/panel/api/eventos', { method: 'DELETE' });
+      lastSeenId = 0;
+      refresh();
+    });
+
+    refresh();
+    setInterval(refresh, 1000);
+  </script>
+</body>
+</html>

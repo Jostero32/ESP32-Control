@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "titulo": "ESP32-Control",
+  "resumen": "Firmware para ESP32 con cuatro botones que envían peticiones HTTP(S) a una API configurable, con portal cautivo para el Wi-Fi y panel de administración protegido, todo embebido en un único binario.",
+  "categorias": ["iot", "embebidos"],
+  "stack": ["ESP32", "C++", "Arduino", "FreeRTOS", "HTML/JS"],
+  "estado": "Compila sin advertencias; pendiente de prueba en placa",
+  "destacado": true,
+  "anio": 2026,
+  "rol": "Diseño y desarrollo del firmware y la interfaz web",
+  "portada": "docs/esquema-conexiones.svg",
+  "capturas": [
+    "docs/esquema-conexiones.svg",
+    "docs/img/portal-wifi.png",
+    "docs/img/admin-config.png",
+    "docs/img/servidor-pruebas.png"
+  ],
+  "aspectos": [
+    "Tarea FreeRTOS con cola de eventos: el loop nunca espera a la red",
+    "Reintentos con espera creciente solo para errores temporales",
+    "HTTPS con validación de certificados y keep-alive",
+    "Contraseña PBKDF2, sesión con token y bloqueo por intentos",
+    "Interfaz web y certificados en PROGMEM: un único «Subir»"
+  ],
+  "demo": null
+}
